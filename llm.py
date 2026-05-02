@@ -28,7 +28,6 @@ def call_llm(prompt: str):
         response = requests.post(URL, headers=headers, json=payload, timeout=60)
         result = response.json()
 
-        # 🔴 HANDLE API ERRORS FIRST
         if "error" in result:
             return {
                 "error": "API Error",
