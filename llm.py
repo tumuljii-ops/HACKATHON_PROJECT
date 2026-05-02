@@ -35,7 +35,6 @@ def call_llm(prompt: str):
                 "raw": result["error"]
             }
 
-        # 🔵 SAFE EXTRACTION (OpenAI-compatible format)
         choices = result.get("choices", [])
         if not choices:
             return {"error": "No choices returned", "raw": result}
@@ -46,7 +45,6 @@ def call_llm(prompt: str):
         if not text:
             return {"error": "Empty response text", "raw": result}
 
-        # 🔵 TRY JSON PARSE
         try:
             return json.loads(text)
         except:
