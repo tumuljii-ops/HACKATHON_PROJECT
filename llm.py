@@ -2,33 +2,26 @@ import os
 import requests
 import json
 
-API_KEY = os.getenv("GEMINI_API_KEY")
-
-# ✅ Correct stable model
-MODEL = "gemini-1.5-pro"   # more stable than flash
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
-
+API_KEY = os.getenv("GROQ_API_KEY")
+MODEL = "llama-3.3-70b-versatile"
+URL = "https://api.groq.com/openai/v1/chat/completions"
 
 def call_llm(prompt: str):
     if not API_KEY:
-        return {"error": "GEMINI_API_KEY not set"}
+        return {"error": "GROQ_API_KEY not set"}
 
     headers = {
         "Content-Type": "application/json",
-        "x-goog-api-key": API_KEY
+        "Authorization": f"Bearer {API_KEY}"
     }
 
     payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": prompt}]
-            }
+        "model": MODEL,
+        "messages": [
+            {"role": "user", "content": prompt}
         ],
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 4096
-        }
+        "temperature": 0.2,
+        "max_tokens": 4096
     }
 
     try:
@@ -42,23 +35,18 @@ def call_llm(prompt: str):
                 "raw": result["error"]
             }
 
-        # 🔵 SAFE EXTRACTION
-        candidates = result.get("candidates", [])
-        if not candidates:
-            return {"error": "No candidates returned", "raw": result}
+        # 🔵 SAFE EXTRACTION (OpenAI-compatible format)
+        choices = result.get("choices", [])
+        if not choices:
+            return {"error": "No choices returned", "raw": result}
 
-        content = candidates[0].get("content", {})
-        parts = content.get("parts", [])
-
-        if not parts:
-            return {"error": "No response parts", "raw": result}
-
-        text = parts[0].get("text", "").strip()
+        message = choices[0].get("message", {})
+        text = message.get("content", "").strip()
 
         if not text:
             return {"error": "Empty response text", "raw": result}
 
-        # 🔵 TRY JSON PARSE (your use case)
+        # 🔵 TRY JSON PARSE
         try:
             return json.loads(text)
         except:
