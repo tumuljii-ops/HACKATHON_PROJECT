@@ -1,26 +1,68 @@
-import requests
 import os
+import requests
+import json
 
-# Read API key from environment (SAFE way)
-API_KEY = os.getenv("OPENAI_API_KEY")
+API_KEY = os.getenv("GEMINI_API_KEY")
 
-def call_llm(prompt):
+# ✅ Correct stable model
+MODEL = "gemini-1.5-pro"   # more stable than flash
+URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
 
-    url = "https://api.openai.com/v1/chat/completions"
+
+def call_llm(prompt: str):
+    if not API_KEY:
+        return {"error": "GEMINI_API_KEY not set"}
 
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-goog-api-key": API_KEY
     }
 
-    data = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "user", "content": prompt}
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}]
+            }
         ],
-        "temperature": 0
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 4096
+        }
     }
 
-    response = requests.post(url, headers=headers, json=data)
+    try:
+        response = requests.post(URL, headers=headers, json=payload, timeout=60)
+        result = response.json()
 
-    return response.json()
+        # 🔴 HANDLE API ERRORS FIRST
+        if "error" in result:
+            return {
+                "error": "API Error",
+                "raw": result["error"]
+            }
+
+        # 🔵 SAFE EXTRACTION
+        candidates = result.get("candidates", [])
+        if not candidates:
+            return {"error": "No candidates returned", "raw": result}
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+
+        if not parts:
+            return {"error": "No response parts", "raw": result}
+
+        text = parts[0].get("text", "").strip()
+
+        if not text:
+            return {"error": "Empty response text", "raw": result}
+
+        # 🔵 TRY JSON PARSE (your use case)
+        try:
+            return json.loads(text)
+        except:
+            return {"raw_text": text}
+
+    except Exception as e:
+        return {"error": str(e)}

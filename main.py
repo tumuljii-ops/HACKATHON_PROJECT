@@ -19,8 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory DB (for hackathon demo)
+# In-memory DB (hackathon demo)
 verified_cases = []
+
 
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -31,28 +32,20 @@ async def upload_pdf(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # STEP 1: Extract text
+        # STEP 1: Extract text from PDF
         text = extract_text(file_path)
 
-        # STEP 2: Extraction
+        # STEP 2: Extraction prompt
         extraction_prompt = get_extraction_prompt(text)
         extraction_response = call_llm(extraction_prompt)
 
-        try:
-            extracted_content = extraction_response["choices"][0]["message"]["content"]
-            extracted_json = json.loads(extracted_content)
-        except:
-            extracted_json = {"error": extraction_response}
+        extracted_json = safe_parse_llm_response(extraction_response)
 
-        # STEP 3: Action Plan
+        # STEP 3: Action plan prompt
         action_prompt = get_action_prompt(extracted_json)
         action_response = call_llm(action_prompt)
 
-        try:
-            action_content = action_response["choices"][0]["message"]["content"]
-            action_json = json.loads(action_content)
-        except:
-            action_json = {"error": action_response}
+        action_json = safe_parse_llm_response(action_response)
 
         return {
             "extracted_data": extracted_json,
@@ -60,7 +53,25 @@ async def upload_pdf(file: UploadFile = File(...)):
         }
 
     finally:
-        os.remove(file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+# 🔥 SAFE PARSER (IMPORTANT FIX)
+def safe_parse_llm_response(response):
+
+    # If mock LLM already returns dict → return directly
+    if isinstance(response, dict):
+        return response
+
+    # If string → try JSON parse
+    if isinstance(response, str):
+        try:
+            return json.loads(response)
+        except:
+            return {"raw_text": response}
+
+    return {"error": "Invalid LLM response format"}
 
 
 # ✅ APPROVE API
@@ -74,7 +85,3 @@ async def approve_case(data: dict = Body(...)):
 @app.get("/dashboard")
 async def dashboard():
     return verified_cases
-
-
-
-
